@@ -138,7 +138,17 @@ def send_telegram_alert(text: str, session: str):
             # Fallback to plain text if Markdown parsing fails
             payload.pop("parse_mode", None)
             res = requests.post(url, json=payload, timeout=15)
-        res.raise_for_status()
+
+        if not res.ok:
+            error_details = res.text
+            try:
+                error_details = res.json().get("description", res.text)
+            except Exception:
+                pass
+            print(f"❌ Telegram API Error ({res.status_code}): {error_details}")
+            if "bot can't initiate conversation" in error_details.lower() or "forbidden" in error_details.lower():
+                print("💡 FIX: You must open your bot in Telegram and tap 'START' (or send /start) so it has permission to message you!")
+            return False
 
     print("✅ Telegram alert sent successfully.")
     return True
