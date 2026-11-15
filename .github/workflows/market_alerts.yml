@@ -1,0 +1,62 @@
+name: Market Intelligence Cloud Automation
+
+on:
+  schedule:
+    # 03:10 UTC = 08:40 AM IST (Morning Stock Market Pre-Market Setup)
+    - cron: '10 3 * * 1-5'
+    # 07:45 UTC = 01:15 PM IST (Mid-Day Equities & European Markets Open)
+    - cron: '45 7 * * 1-5'
+    # 12:50 UTC = 06:20 PM IST (Evening MCX Metals, Minerals & Commodities)
+    - cron: '50 12 * * 1-5'
+
+  workflow_dispatch:
+    inputs:
+      session:
+        description: 'Select session to trigger'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - morning
+          - afternoon
+          - evening
+
+jobs:
+  run-market-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Market Alert Bot
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_RECIPIENT_EMAIL: ${{ secrets.ALERT_RECIPIENT_EMAIL }}
+        run: |
+          SESSION="${{ github.event.inputs.session || 'auto' }}"
+          python market_bot.py --session "$SESSION"
+
+      - name: Commit updated log archive (optional)
+        if: always()
+        run: |
+          git config --global user.name "MarketBot-Cloud"
+          git config --global user.email "marketbot@cloud.automated"
+          git add market_reports_log.md || true
+          git commit -m "Auto-archive market report [skip ci]" || true
+          git push || true
